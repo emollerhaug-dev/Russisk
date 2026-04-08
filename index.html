@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Russiske gloser">
+<title>Russiske gloser</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --card: #22263a;
+    --accent: #5b8dee; --accent2: #e85b8d; --text: #f0f2ff;
+    --muted: #7a8099; --border: #2e3250; --green: #4ecb8d;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; min-height: -webkit-fill-available;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .tabs {
+    display: flex; background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 4px; padding-top: env(safe-area-inset-top, 0px); flex-shrink: 0;
+  }
+  .tab {
+    flex: 1; padding: 14px 8px 12px; text-align: center; font-size: 13px; font-weight: 600;
+    color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .page { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+  .page.active { display: flex; }
+
+  /* FLASH */
+  #page-flash { align-items: center; justify-content: center; padding: 20px; gap: 20px; }
+  .card-counter { font-size: 13px; color: var(--muted); }
+  .flashcard-wrap { width: 100%; max-width: 360px; perspective: 1000px; cursor: pointer; }
+  .flashcard {
+    width: 100%; height: 220px; position: relative;
+    transform-style: preserve-3d; transition: transform 0.5s cubic-bezier(0.4,0,0.2,1); border-radius: 20px;
+  }
+  .flashcard.flipped { transform: rotateY(180deg); }
+  .card-face {
+    position: absolute; inset: 0; border-radius: 20px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; backface-visibility: hidden; -webkit-backface-visibility: hidden; padding: 24px;
+  }
+  .card-front { background: linear-gradient(135deg, #1e2340, #252a45); border: 1px solid var(--border); }
+  .card-back  { background: linear-gradient(135deg, #1e2f40, #253040); border: 1px solid #2e4050; transform: rotateY(180deg); }
+  .card-lang  { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; }
+  .card-word  { font-size: 26px; font-weight: 700; text-align: center; line-height: 1.25; color: var(--text); }
+  .card-type  { font-size: 12px; color: var(--accent); background: rgba(91,141,238,0.12); padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+  .card-hint  { font-size: 12px; color: var(--muted); text-align: center; }
+  .card-nav   { display: flex; gap: 12px; align-items: center; width: 100%; max-width: 360px; }
+  .nav-btn {
+    flex: 1; height: 52px; border: 1px solid var(--border); border-radius: 14px;
+    background: var(--card); color: var(--text); font-size: 22px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nav-btn:active { background: var(--border); }
+  .nav-btn.shuffle { flex: 0 0 52px; font-size: 18px; color: var(--accent); border-color: rgba(91,141,238,0.3); }
+  .empty-state { text-align: center; color: var(--muted); font-size: 15px; line-height: 1.6; }
+  .empty-state .big { font-size: 48px; margin-bottom: 12px; }
+
+  /* LIST */
+  #page-list { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .list-header {
+    padding: 16px 16px 8px; font-size: 12px; font-weight: 700; letter-spacing: 1px;
+    color: var(--muted); text-transform: uppercase; position: sticky; top: 0;
+    background: var(--bg); z-index: 1; display: flex; justify-content: space-between; align-items: center;
+  }
+  .word-count { background: var(--card); border-radius: 10px; padding: 2px 8px; font-size: 11px; color: var(--text); }
+  .gloss-item { display: flex; align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--border); gap: 10px; }
+  .gloss-item:last-child { border-bottom: none; }
+  .gloss-ru   { font-size: 14px; font-weight: 600; flex: 1; min-width: 0; }
+  .gloss-no   { font-size: 12px; color: var(--muted); flex: 1; min-width: 0; text-align: right; }
+  .gloss-badge { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; text-transform: uppercase; flex-shrink: 0; }
+  .badge-verb  { background: rgba(91,141,238,0.15); color: var(--accent); }
+  .badge-noun  { background: rgba(78,203,141,0.15); color: var(--green); }
+  .badge-adj   { background: rgba(232,91,141,0.15); color: var(--accent2); }
+  .badge-adv   { background: rgba(255,200,80,0.15); color: #ffcc44; }
+  .badge-other { background: rgba(160,160,180,0.15); color: var(--muted); }
+  .delete-btn {
+    width: 26px; height: 26px; border-radius: 8px; border: none;
+    background: rgba(232,91,141,0.12); color: var(--accent2); font-size: 13px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+
+  /* ADD */
+  #page-add { padding: 20px 16px; gap: 14px; overflow-y: auto; }
+  .add-title { font-size: 20px; font-weight: 700; }
+  .add-sub   { font-size: 14px; color: var(--muted); }
+  .input-group { display: flex; flex-direction: column; gap: 6px; }
+  .input-label { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; }
+  .input-field {
+    width: 100%; padding: 14px 16px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; color: var(--text); font-size: 17px; outline: none; -webkit-appearance: none; font-family: inherit;
+  }
+  .input-field:focus { border-color: var(--accent); }
+  .input-field::placeholder { color: var(--muted); }
+  .type-select { display: flex; gap: 8px; flex-wrap: wrap; }
+  .type-btn {
+    flex: 1; min-width: 70px; padding: 10px 8px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--card); color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; text-align: center;
+  }
+  .type-btn.selected { border-color: var(--accent); color: var(--accent); background: rgba(91,141,238,0.1); }
+  .verb-hint { font-size: 12px; color: var(--muted); background: var(--card); border-radius: 10px; padding: 10px 12px; line-height: 1.5; display: none; }
+  .verb-hint.show { display: block; }
+  .add-btn {
+    width: 100%; padding: 16px; border-radius: 16px; border: none; background: var(--accent);
+    color: #fff; font-size: 17px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .add-btn:active { opacity: 0.8; }
+
+  .toast {
+    position: fixed; bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--green); color: #0f1117; padding: 10px 20px;
+    border-radius: 20px; font-size: 14px; font-weight: 700;
+    opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .spacer { flex-shrink: 0; height: env(safe-area-inset-bottom, 0px); }
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <div class="tab active" onclick="showPage('flash',this)">🃏 Flashkort</div>
+  <div class="tab" onclick="showPage('list',this)">📚 Gloseliste</div>
+  <div class="tab" onclick="showPage('add',this)">＋ Legg til</div>
+</div>
+
+<div id="page-flash" class="page active">
+  <div id="flash-empty" class="empty-state" style="display:none;">
+    <div class="big">📖</div>Ingen gloser ennå.
+  </div>
+  <div id="flash-content" style="display:contents;">
+    <div class="card-counter" id="card-counter"></div>
+    <div class="flashcard-wrap" onclick="flipCard()">
+      <div class="flashcard" id="flashcard">
+        <div class="card-face card-front">
+          <div class="card-lang">Russisk</div>
+          <div class="card-word" id="front-word"></div>
+          <div class="card-type" id="front-type"></div>
+          <div class="card-hint">Trykk for å se oversettelse</div>
+        </div>
+        <div class="card-face card-back">
+          <div class="card-lang">Norsk</div>
+          <div class="card-word" id="back-word"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-nav">
+      <button class="nav-btn" onclick="prevCard()">◀</button>
+      <button class="nav-btn shuffle" onclick="shuffleCards()">🔀</button>
+      <button class="nav-btn" onclick="nextCard()">▶</button>
+    </div>
+  </div>
+</div>
+
+<div id="page-list" class="page">
+  <div class="list-header">Alle gloser <span class="word-count" id="word-count">0</span></div>
+  <div id="gloss-list"></div>
+</div>
+
+<div id="page-add" class="page">
+  <div class="add-title">Legg til gloss</div>
+  <div class="add-sub">Fyll inn russisk ord og norsk oversettelse</div>
+  <div class="input-group">
+    <div class="input-label">Russisk</div>
+    <input class="input-field" id="input-ru" placeholder="напр. читать / прочитать" type="text" autocomplete="off" autocorrect="off" spellcheck="false">
+  </div>
+  <div class="input-group">
+    <div class="input-label">Norsk</div>
+    <input class="input-field" id="input-no" placeholder="напр. å lese" type="text" autocomplete="off">
+  </div>
+  <div class="input-group">
+    <div class="input-label">Ordklasse</div>
+    <div class="type-select">
+      <div class="type-btn selected" data-type="verb" onclick="selectType(this)">Verb</div>
+      <div class="type-btn" data-type="noun" onclick="selectType(this)">Substantiv</div>
+      <div class="type-btn" data-type="adj" onclick="selectType(this)">Adjektiv</div>
+      <div class="type-btn" data-type="adv" onclick="selectType(this)">Adverb</div>
+      <div class="type-btn" data-type="other" onclick="selectType(this)">Annet</div>
+    </div>
+    <div class="verb-hint show" id="verb-hint">
+      💡 For verb: skriv begge aspekter, f.eks. <strong>читать / прочитать</strong>
+    </div>
+  </div>
+  <button class="add-btn" onclick="addWord()">Legg til</button>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="spacer"></div>
+
+<script>
+const PRESET = [
+  { ru: "Раскладушка", no: "feltseng / sammenleggbar seng", type: "noun" },
+  { ru: "Заснуть / засыпать", no: "å sovne", type: "verb" },
+  { ru: "Засунуть / засовывать", no: "å stikke inn / putte inn / dytte inn", type: "verb" },
+  { ru: "Облик", no: "utseende / fremtoning / skikkelse", type: "noun" },
+  { ru: "Преувеличить / преувеличивать", no: "å overdrive", type: "verb" },
+  { ru: "Общительный", no: "omgjengelig / sosial / utadvendt", type: "adj" },
+  { ru: "Угнести / угнетать", no: "å undertrykke / nedtrykke / tynge", type: "verb" },
+  { ru: "Торчать", no: "å stikke ut / rage frem", type: "verb" },
+  { ru: "Маловыразительный", no: "uttrykksløs / intetsigende", type: "adj" },
+  { ru: "Упрёк", no: "bebreidelse / irettesettelse", type: "noun" },
+  { ru: "Сдержанный", no: "behersket / tilbakeholden / reservert", type: "adj" },
+  { ru: "Из соображений приличия", no: "av hensyn til anstendighet / av sømmelighetshensyn", type: "other" },
+  { ru: "Сплошная профанация", no: "ren og skjær banalitet / fullstendig humbug", type: "other" },
+  { ru: "Халва", no: "halva", type: "noun" },
+  { ru: "Обособленность", no: "isolasjon / atskillelse / tilbaketrekning", type: "noun" },
+];
+
+const STORAGE_KEY = 'russiske-gloser-v1';
+let words = [];
+let currentIndex = 0;
+let flipped = false;
+let selectedType = 'verb';
+
+async function loadWords() {
+  try {
+    const result = await window.storage.get(STORAGE_KEY);
+    if (result && result.value) {
+      words = JSON.parse(result.value);
+      let added = 0;
+      for (const p of PRESET) {
+        if (!words.find(w => w.ru === p.ru)) { words.push(p); added++; }
+      }
+      if (added) await saveWords();
+    } else {
+      words = [...PRESET];
+      await saveWords();
+    }
+  } catch(e) {
+    words = [...PRESET];
+  }
+  renderAll();
+}
+
+async function saveWords() {
+  try { await window.storage.set(STORAGE_KEY, JSON.stringify(words)); } catch(e) {}
+}
+
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'flash') renderFlash();
+  if (name === 'list') renderList();
+}
+
+function renderFlash() {
+  const empty = document.getElementById('flash-empty');
+  const content = document.getElementById('flash-content');
+  if (!words.length) { empty.style.display = 'flex'; content.style.display = 'none'; return; }
+  empty.style.display = 'none'; content.style.display = 'contents';
+  if (currentIndex >= words.length) currentIndex = 0;
+  showCard();
+}
+
+function showCard() {
+  if (!words.length) return;
+  flipped = false;
+  document.getElementById('flashcard').classList.remove('flipped');
+  const w = words[currentIndex];
+  document.getElementById('front-word').textContent = w.ru;
+  document.getElementById('back-word').textContent = w.no;
+  document.getElementById('front-type').textContent = typeLabel(w.type);
+  document.getElementById('card-counter').textContent = `${currentIndex + 1} / ${words.length}`;
+}
+
+function flipCard() { flipped = !flipped; document.getElementById('flashcard').classList.toggle('flipped', flipped); }
+function nextCard() { currentIndex = (currentIndex + 1) % words.length; showCard(); }
+function prevCard() { currentIndex = (currentIndex - 1 + words.length) % words.length; showCard(); }
+
+function shuffleCards() {
+  for (let i = words.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [words[i], words[j]] = [words[j], words[i]];
+  }
+  currentIndex = 0; showCard(); showToast('🔀 Stokket om!');
+}
+
+function renderList() {
+  document.getElementById('word-count').textContent = words.length;
+  const list = document.getElementById('gloss-list');
+  if (!words.length) { list.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);">Ingen gloser ennå</div>'; return; }
+  list.innerHTML = words.map((w, i) => `
+    <div class="gloss-item">
+      <span class="gloss-badge badge-${w.type||'other'}">${typeLabel(w.type)}</span>
+      <span class="gloss-ru">${w.ru}</span>
+      <span class="gloss-no">${w.no}</span>
+      <button class="delete-btn" onclick="deleteWord(${i})">✕</button>
+    </div>`).join('');
+}
+
+function deleteWord(i) {
+  words.splice(i, 1); saveWords(); renderList();
+  if (currentIndex >= words.length && currentIndex > 0) currentIndex--;
+}
+
+function selectType(el) {
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected'); selectedType = el.dataset.type;
+  document.getElementById('verb-hint').classList.toggle('show', selectedType === 'verb');
+}
+
+function addWord() {
+  const ru = document.getElementById('input-ru').value.trim();
+  const no = document.getElementById('input-no').value.trim();
+  if (!ru || !no) { showToast('⚠️ Fyll inn begge felt', '#e85b8d'); return; }
+  words.push({ ru, no, type: selectedType }); saveWords();
+  document.getElementById('input-ru').value = '';
+  document.getElementById('input-no').value = '';
+  currentIndex = words.length - 1;
+  showToast('✓ Lagt til!'); renderList();
+}
+
+function typeLabel(t) {
+  return { verb:'Verb', noun:'Subst.', adj:'Adj.', adv:'Adv.', other:'Annet' }[t] || 'Annet';
+}
+
+function showToast(msg, color) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.background = color || 'var(--green)';
+  t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function renderAll() { renderFlash(); renderList(); }
+loadWords();
+</script>
+</body>
+</html>
